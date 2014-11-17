@@ -48,14 +48,17 @@ gulp.task('del', function(done) {
 // Building
 
 gulp.task('build', ['del'], function (done) {
-  gulp.src([routes.src + '**/grangularExampleNgApp.coffee', routes.src + r_coffee, routes.src + r_js])
+  gulp.src([routes.src + '**/grangularExampleNgApp.coffee',
+	    routes.src + r_coffee, routes.src + r_js])
       .pipe(cached('build'))
         .pipe(print())
         .pipe(gulpif(!isProd(), sourcemaps.init()))
-          .pipe(gulpif(/.*\.coffee/, coffee({bare: true}).on('error', gutil.log)))
+          .pipe(gulpif(/.*\.coffee/,
+                       coffee({bare: true}).on('error', gutil.log)))
           .on('error', function(done) {throw 'COFFEESCRIPT_ERROR';})
           .pipe(ngAnnotate())
-        .pipe(gulpif(!isProd(), sourcemaps.write(routes.src_to_release + r_maps)))
+        .pipe(gulpif(!isProd(),
+                     sourcemaps.write(routes.src_to_release + r_maps)))
       .pipe(ignore.exclude(/.*\.map/))
       .pipe(remember('build'))
         .pipe(gulpif(isProd(), sourcemaps.init({loadMaps: true})))
@@ -65,8 +68,10 @@ gulp.task('build', ['del'], function (done) {
     .on('end', done);
 });
 
+// ----
+// Watching
+
 gulp.task('watch', function () {
-  //watching for js changes so that we can move infixParser Services to the release directory
   watcher = gulp.watch([routes.src + r_coffee, routes.src + r_js], ['build']);
   watcher.on('change', function(event) {
     if(event.type === 'deleted') {
