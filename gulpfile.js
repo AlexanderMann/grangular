@@ -5,11 +5,16 @@ var gutil = require('gulp-util');
 var uglify = require('gulp-uglify');
 var ngAnnotate = require('gulp-ng-annotate');
 var sourcemaps = require('gulp-sourcemaps');
-var rename = require('gulp-rename');
 var print = require('gulp-print');
-var changed = require('gulp-changed');
-var clean = require('gulp-clean');
+var del = require('del');
+var cached = require('gulp-cached');
+var remember = require('gulp-remember');
+var gulpif = require('gulp-if');
+var ignore = require('gulp-ignore');
 
+isProd = function() {
+  return gutil.env.e === 'prod';
+}
 var r_coffee = "**/*.coffee";
 var r_js = "**/*.js";
 var r_maps = "maps/"
@@ -29,82 +34,67 @@ process.on('exit', function() {
     process.exit(1);
   });
 });
-
 // ----
 // Hard Delete
 
-gulp.task('del', function() {
-  gulp.src([routes.release], {read: false})
-    .pipe(clean({force: true}));
-});
-
-// ----
-// Tidying - Used for watching
-
-flipExtname = function(path) {
-  if(path.extname == '.coffee') {
-    path.extname = '.js';
-  } else if (path.extname == '.js') {
-    path.extname = '.coffee';
+gulp.task('del', function(done) {
+  if(isProd) {
+    del(routes.release, done);
+  } else {
+    done();
   }
-}
-
-releaseClean = function(base_path) {
-  return
-}
-
-gulp.task('clean', function() {
-  return
-  gulp.src([routes.release + r_js])
-    .pipe(rename(flipExtname))
-    .pipe(print())
-    // This should only target those files which aren't present in src
-    .pipe(changed(routes.src))
-    .pipe(rename(flipExtname))
-    .pipe(print())
-      .pipe(clean());
 });
 
 // ----
 // Building
 
-gulp.task('js', ['clean'], function (done) {
-  gulp.src([routes.src + r_coffee])
-    .pipe(rename(flipExtname))
-    .pipe(changed(routes.release))
-    .pipe(rename(flipExtname))
-    .pipe(print())
-    .pipe(sourcemaps.init())
-      .pipe(coffee({bare: true}).on('error', gutil.log))
-      .on('error', function(done) {throw 'COFFEESCRIPT_ERROR';})
-      .pipe(ngAnnotate())
-    .pipe(sourcemaps.write(routes.src_to_release + r_maps))
-    .pipe(gulp.dest(routes.release))
-    .on('end', done);
-});
-
-gulp.task('build', ['js'], function (done) {
-  gulp.src([routes.release + '**/grangularExampleNgApp.js', routes.release + r_js, '!' + routes.release + 'grangularExampleConcatNgApp.js', '!' + routes.release + r_maps + '**/*'])
-      .pipe(sourcemaps.init({loadMaps: true}))
-      	.pipe(concat('grangularExampleConcatNgApp.js'))
-      	.pipe(gulp.dest(routes.dash.angular.release))
-      .pipe(sourcemaps.write(r_maps))
-    .pipe(gulp.dest(routes.dash.angular.release))
-    .on('end', done);
-});
-
-gulp.task('release', ['del'], function(done) {
-  gulp.src([routes.src + '**/grangularExampleNgApp.coffee', routes.src + r_js])
-      .pipe(coffee({bare: true}).on('error', gutil.log))
-      .on('error', function(done) {throw 'COFFEESCRIPT_ERROR';})
-      .pipe(ngAnnotate())
-      .pipe(concat('grangularExampleConcatNgApp.js'))
+gulp.task('build', ['del'], function (done) {
+  gulp.src([routes.src + '**/grangularExampleNgApp.coffee', routes.src + r_coffee, routes.src + r_js])
+      .pipe(cached('build'))
+        .pipe(print())
+        .pipe(gulpif(!isProd(), sourcemaps.init()))
+          .pipe(gulpif(/.*\.coffee/, coffee({bare: true}).on('error', gutil.log)))
+          .on('error', function(done) {throw 'COFFEESCRIPT_ERROR';})
+          .pipe(ngAnnotate())
+        .pipe(gulpif(!isProd(), sourcemaps.write(routes.src_to_release + r_maps)))
+      .pipe(ignore.exclude(/.*\.map/))
+      .pipe(remember('build'))
+        .pipe(gulpif(isProd(), sourcemaps.init({loadMaps: true})))
+          .pipe(concat('grangularExampleNgConcatApp.js'))
+        .pipe(gulpif(isProd(), sourcemaps.write(r_maps)))
     .pipe(gulp.dest(routes.release))
     .on('end', done);
 });
 
 gulp.task('watch', function () {
-  gulp.watch([routes.src + r_coffee], ['dash-build']);
+  //watching for js changes so that we can move infixParser Services to the release directory
+  watcher = gulp.watch([routes.src + r_coffee, routes.src + r_js], ['build']);
+  watcher.on('change', function(event) {
+    if(event.type === 'deleted') {
+      delete cache.caches['build'][event.path];
+      cloned_path = JSON.parse(JSON.stringify(event.path));
+      cloned_path.extname = '.js';
+      remember.forget('build', cloned_path);
+    }
+  });
 });
 
-gulp.task('default', ['build']);
+gulp.task('default', ['help']);
+
+gulp.task('help', function() {
+  console.log();
+  console.log();
+  console.log('-> means `command points to`, : means `command performs`');
+  console.log();
+  console.log('------ Grangular Gulp Commands ------');
+  console.log('default -> help');
+  console.log('build -> [del] : optional parameter of -e "prod" for prod release. Builds the application.');
+  console.log('del : Deletes the release folder. Use this when things are out of sorts, or you need to remove all of the release.');
+  console.log('------ Watchers ------');
+  console.log('watch : Watches for any changes in the package and performs `build`. Use this for when you are actively in the development enironment. Runs slowly the first time, and fast all other times.');
+  console.log('------ Help ------');
+  console.log('h -> help : Presents this output.');
+  console.log();
+  console.log();
+});
+gulp.task('h', ['help'], function() {});
