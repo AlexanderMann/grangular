@@ -2,7 +2,6 @@ var gulp = require('gulp');
 var concat = require('gulp-concat');
 var coffee = require('gulp-coffee');
 var gutil = require('gulp-util');
-var uglify = require('gulp-uglify');
 var ngAnnotate = require('gulp-ng-annotate');
 var sourcemaps = require('gulp-sourcemaps');
 var print = require('gulp-print');
